@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { cargarCatalogoBase } from '@/lib/datos';
 
-interface Empresa { id: string; nombre: string; rnc: string | null; regimen_itbis: string; modo: string }
+interface Empresa { id: string; nombre: string; rnc: string | null; regimen_itbis: string }
 
 export default function EmpresasPage() {
   const router = useRouter();
@@ -15,9 +16,11 @@ export default function EmpresasPage() {
   const [nombre, setNombre] = useState('');
   const [rnc, setRnc] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [creando, setCreando] = useState(false);
 
   async function cargar() {
-    const { data, error } = await supabase.from('empresas').select('*').order('created_at');
+    const { data, error } = await supabase.from('empresas').select('id,nombre,rnc,regimen_itbis').order('created_at');
     if (error) { setError(error.message); return; }
     setEmpresas((data ?? []) as Empresa[]);
   }
@@ -35,14 +38,31 @@ export default function EmpresasPage() {
   async function crear(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setAviso(null);
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) { router.replace('/login'); return; }
     if (!nombre.trim()) { setError('Escribe el nombre de la empresa.'); return; }
     const r = rnc.replace(/\D/g, '');
     if (r && r.length !== 9 && r.length !== 11) { setError('El RNC debe tener 9 dígitos o la cédula 11.'); return; }
-    const { error } = await supabase.from('empresas').insert({ owner_id: u.user.id, nombre: nombre.trim(), rnc: r || null });
-    if (error) { setError(error.message); return; }
-    setNombre(''); setRnc('');
+
+    setCreando(true);
+    const { data: nueva, error } = await supabase
+      .from('empresas')
+      .insert({ owner_id: u.user.id, nombre: nombre.trim(), rnc: r || null })
+      .select('id')
+      .single();
+    if (error) { setCreando(false); setError(error.message); return; }
+
+    // Cada empresa empieza con el catálogo UTESA; luego puede agregar sus propias cuentas.
+    try {
+      await cargarCatalogoBase(nueva.id);
+      setAviso('Empresa creada con el catálogo UTESA.');
+    } catch (err) {
+      setError(`La empresa se creó, pero no se pudo cargar el catálogo: ${err instanceof Error ? err.message : String(err)}. Puedes cargarlo desde Catálogo.`);
+    }
+    setNombre('');
+    setRnc('');
+    setCreando(false);
     await cargar();
   }
 
@@ -54,37 +74,46 @@ export default function EmpresasPage() {
   if (cargando) return <main style={{ padding: 16 }}>Cargando…</main>;
 
   return (
-    <main style={{ maxWidth: 640, margin: '0 auto', padding: '24px 16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <h1 style={{ fontSize: '1.4rem' }}>Mis empresas</h1>
-        <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>{usuario} · <button onClick={salir}>Salir</button></span>
-      </div>
+    <>
+      <header className="top">
+        <div className="top-in">
+          <h1 className="brand">LovelyAccount<small>{usuario}</small></h1>
+          <button type="button" className="top-chip" onClick={salir}>Salir</button>
+        </div>
+      </header>
+      <main>
+        <div className="wrap">
+          <h2 className="view-title">Mis empresas</h2>
 
-      {empresas.length === 0 && <p>Todavía no tienes empresas. Crea la primera abajo.</p>}
-      <ul style={{ listStyle: 'none', padding: 0 }}>
-        {empresas.map(e => (
-          <li key={e.id} style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 12, marginBottom: 8 }}>
-            <Link href={`/diario?id=${e.id}`}><strong>{e.nombre}</strong></Link>
-            <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>
-              {e.rnc ? `RNC ${e.rnc} · ` : 'Sin RNC · '}{e.regimen_itbis}
+          {empresas.length === 0 && <p className="lede">Todavía no tienes empresas. Crea la primera abajo.</p>}
+          {empresas.map(e => (
+            <Link key={e.id} href={`/diario?id=${e.id}`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <strong>{e.nombre}</strong>
+              <span style={{ fontSize: '.85rem', color: 'var(--muted)' }}>
+                {e.rnc ? `RNC ${e.rnc} · ` : 'Sin RNC · '}{e.regimen_itbis}
+              </span>
+            </Link>
+          ))}
+
+          <form onSubmit={crear} className="card">
+            <h3>Nueva empresa</h3>
+            <label className="f">Nombre
+              <input type="text" value={nombre} onChange={e => setNombre(e.target.value)} />
+            </label>
+            <label className="f">RNC o cédula (opcional)
+              <input type="text" inputMode="numeric" value={rnc} onChange={e => setRnc(e.target.value)} />
+            </label>
+            {error && <div className="msg bad">{error}</div>}
+            {aviso && <div className="msg ok">{aviso}</div>}
+            <div className="row">
+              <span className="spacer" />
+              <button type="submit" className="btn primary" disabled={creando}>
+                {creando ? 'Creando…' : 'Crear empresa'}
+              </button>
             </div>
-          </li>
-        ))}
-      </ul>
-
-      <form onSubmit={crear} style={{ display: 'grid', gap: 10, marginTop: 16, border: '1px solid #e5e7eb', borderRadius: 10, padding: 14 }}>
-        <h2 style={{ fontSize: '1.05rem', margin: 0 }}>Nueva empresa</h2>
-        <label>Nombre
-          <input value={nombre} onChange={e => setNombre(e.target.value)}
-            style={{ width: '100%', padding: 10, marginTop: 4, color: '#111827', background: '#fff' }} />
-        </label>
-        <label>RNC o cédula (opcional)
-          <input value={rnc} onChange={e => setRnc(e.target.value)} inputMode="numeric"
-            style={{ width: '100%', padding: 10, marginTop: 4, color: '#111827', background: '#fff' }} />
-        </label>
-        {error && <p style={{ color: '#b91c1c' }}>{error}</p>}
-        <button type="submit" style={{ padding: 12 }}>Crear empresa</button>
-      </form>
-    </main>
+          </form>
+        </div>
+      </main>
+    </>
   );
 }
