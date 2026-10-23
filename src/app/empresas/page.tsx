@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
 interface Empresa { id: string; nombre: string; rnc: string | null; regimen_itbis: string; modo: string }
@@ -63,7 +64,7 @@ export default function EmpresasPage() {
       <ul style={{ listStyle: 'none', padding: 0 }}>
         {empresas.map(e => (
           <li key={e.id} style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 12, marginBottom: 8 }}>
-            <strong>{e.nombre}</strong>
+            <Link href={`/empresas/${e.id}/diario`}><strong>{e.nombre}</strong></Link>
             <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>
               {e.rnc ? `RNC ${e.rnc} · ` : 'Sin RNC · '}{e.regimen_itbis}
             </div>
