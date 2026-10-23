@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
@@ -17,8 +18,8 @@ const numero = (s: string) => {
 };
 const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export default function DiarioPage() {
-  const { id: empresaId } = useParams<{ id: string }>();
+function Diario() {
+  const empresaId = useSearchParams().get('id') ?? '';
   const [cuentas, setCuentas] = useState<Cuenta[]>([]);
   const [asientos, setAsientos] = useState<Asiento[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -195,4 +196,8 @@ export default function DiarioPage() {
       </form>
     </main>
   );
+}
+
+export default function DiarioPage() {
+  return <Suspense fallback={<p style={{ padding: 16 }}>Cargando…</p>}><Diario /></Suspense>;
 }
