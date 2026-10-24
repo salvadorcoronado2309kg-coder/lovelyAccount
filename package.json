@@ -9,11 +9,13 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@supabase/supabase-js": "2.49.4",
     "@supabase/ssr": "0.5.2",
+    "@supabase/supabase-js": "2.49.4",
+    "jspdf": "2.5.1",
     "next": "15.3.3",
     "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "react-dom": "19.0.0",
+    "xlsx": "0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20",
